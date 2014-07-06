@@ -12,6 +12,7 @@ simultaneously." - Mark Dalrymple
 package main
 
 import (
+	"bufio"
 	"log"
 	"os"
 	"syscall"
@@ -32,27 +33,41 @@ func main() {
 	log.Printf("fd: %d for %s", fd, "/tmp")
 
 	fd2 := open("./kqlog.go")
+	// fd2 := open("/usr/home/vagrant/.profile")
 	defer syscall.Close(fd2)
 	log.Printf("fd: %d for %s", fd2, "./kqlog.go")
 
-	if err := kqueue.Add(kq, []int{fd, fd2}, kqueue.NOTE_ALL_EVENTS); err != nil {
+	if err := kqueue.Register(kq, []int{fd, fd2}, syscall.EV_ADD|syscall.EV_CLEAR|syscall.EV_ENABLE, kqueue.NOTE_ALL_EVENTS); err != nil {
 		log.Fatal(err)
 	}
 
 	eventBuffer := make([]syscall.Kevent_t, 10)
-	timespec := durationToTimespec(100 * time.Millisecond)
+	// timespec := durationToTimespec(100 * time.Millisecond)
 
-	for {
-		events, err := kqueue.Read(kq, eventBuffer, &timespec)
-		if err != nil {
-			log.Fatal(err)
-		}
+	go func() {
+		for {
+			events, err := kqueue.Read(kq, eventBuffer, nil)
+			if err != nil {
+				log.Fatal("Read ", err)
+			}
 
-		log.Printf("%d events", len(events))
-		for _, event := range events {
-			logEvent(event)
+			log.Printf("%d events", len(events))
+			for _, event := range events {
+				logEvent(event)
+			}
 		}
+	}()
+
+	// press enter to continue
+	in := bufio.NewReader(os.Stdin)
+	in.ReadString('\n')
+
+	if err := kqueue.Register(kq, []int{fd, fd2}, syscall.EV_DELETE, kqueue.NOTE_ALL_EVENTS); err != nil {
+		log.Fatal(err)
 	}
+	syscall.Close(kq)
+
+	in.ReadString('\n')
 }
 
 var noteDescription = map[uint32]string{
@@ -76,10 +91,10 @@ func logEvent(event syscall.Kevent_t) {
 }
 
 func open(name string) (fd int) {
-	// darwin: syscall.O_EVTONLY
-	// otherwise: syscall.O_NONBLOCK|syscall.O_RDONLY
+	// const mode = syscall.O_EVTONLY // darwin
+	const mode = syscall.O_NONBLOCK | syscall.O_RDONLY
 	// why 0700?
-	fd, err := syscall.Open(name, syscall.O_EVTONLY, 0700)
+	fd, err := syscall.Open(name, mode, 0700)
 	// should I be checking fd == -1 instead?
 	if err != nil {
 		log.Fatal(os.NewSyscallError("Open", err))

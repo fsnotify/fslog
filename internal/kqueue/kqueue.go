@@ -23,10 +23,8 @@ func Kqueue() (kq int, err error) {
 }
 
 // Kevent registers events with the queue
-func Add(kq int, fds []int, fflags int) error {
+func Register(kq int, fds []int, flags, fflags int) error {
 	changes := make([]syscall.Kevent_t, len(fds))
-
-	const flags = syscall.EV_ADD | syscall.EV_CLEAR | syscall.EV_ENABLE
 
 	// SetKevent converts ints to the platform-specific types:
 	for i, fd := range fds {
