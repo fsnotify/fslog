@@ -14,6 +14,7 @@ import (
 	"log"
 	"os"
 	"syscall"
+	"time"
 )
 
 const (
@@ -54,9 +55,10 @@ func main() {
 	Add(kq, fd, NOTE_ALL_EVENTS)
 
 	eventBuffer := make([]syscall.Kevent_t, 10)
+	timespec := DurationToTimespec(100 * time.Millisecond)
 
 	for {
-		events, err := Read(kq, eventBuffer)
+		events, err := Read(kq, eventBuffer, &timespec)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -107,8 +109,15 @@ func Add(kq, fd, fflags int) error {
 }
 
 // Read retrieves pending events
-func Read(kq int, events []syscall.Kevent_t) ([]syscall.Kevent_t, error) {
-	// block here until an event arrives
-	n, err := syscall.Kevent(kq, nil, events, nil)
-	return events[0:n], err
+// A timeout of nil blocks indefinitely, while 0 polls the queue.
+func Read(kq int, events []syscall.Kevent_t, timeout *syscall.Timespec) ([]syscall.Kevent_t, error) {
+	n, err := syscall.Kevent(kq, nil, events, timeout)
+	if err != nil {
+		return nil, os.NewSyscallError("Kevent", err)
+	}
+	return events[0:n], nil
+}
+
+func DurationToTimespec(d time.Duration) syscall.Timespec {
+	return syscall.NsecToTimespec(d.Nanoseconds())
 }
