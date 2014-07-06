@@ -45,14 +45,12 @@ func main() {
 	fd := open("/tmp")
 	defer syscall.Close(fd)
 	log.Printf("fd: %d for %s", fd, "/tmp")
-	if err := Add(kq, fd, NOTE_ALL_EVENTS); err != nil {
-		log.Fatal(err)
-	}
 
 	fd2 := open("./kqlog.go")
 	defer syscall.Close(fd2)
 	log.Printf("fd: %d for %s", fd2, "./kqlog.go")
-	if err := Add(kq, fd2, NOTE_ALL_EVENTS); err != nil {
+
+	if err := Add(kq, []int{fd, fd2}, NOTE_ALL_EVENTS); err != nil {
 		log.Fatal(err)
 	}
 
@@ -103,21 +101,22 @@ func Kqueue() (kq int, err error) {
 }
 
 // Kevent registers events with the queue
-func Add(kq, fd, fflags int) error {
-	// TODO: multiple descriptors at once?
-	changes := make([]syscall.Kevent_t, 1)
+func Add(kq int, fds []int, fflags int) error {
+	changes := make([]syscall.Kevent_t, len(fds))
 
 	const flags = syscall.EV_ADD | syscall.EV_CLEAR | syscall.EV_ENABLE
 
 	// SetKevent converts ints to the platform-specific types:
-	syscall.SetKevent(&changes[0], fd, syscall.EVFILT_VNODE, flags)
-	changes[0].Fflags = uint32(fflags)
+	for i, fd := range fds {
+		syscall.SetKevent(&changes[i], fd, syscall.EVFILT_VNODE, flags)
+		changes[i].Fflags = uint32(fflags)
+		// Udata could be useful for storing the file path with the event
+		// but passing strings to C and back while avoiding GC issues may
+		// not be worth it.
+		// Udata is usually *byte, but it is a intptr_t on NetBSD.
+	}
 
-	// Udata could be useful for storing the file path with the event
-	// but passing strings to C and back while avoiding GC issues may
-	// not be worth it. Udata is usually *byte, but it a intptr_t on NetBSD.
-
-	// register the event
+	// register the events
 	_, err := syscall.Kevent(kq, changes, nil, nil)
 	// should I be checking success == -1?
 	return os.NewSyscallError("Kevent", err)
