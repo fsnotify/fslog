@@ -16,10 +16,28 @@ import (
 	"syscall"
 )
 
+const (
+	NOTE_ALL_EVENTS = syscall.NOTE_DELETE | syscall.NOTE_WRITE |
+		syscall.NOTE_EXTEND | syscall.NOTE_ATTRIB | syscall.NOTE_LINK |
+		syscall.NOTE_RENAME | syscall.NOTE_REVOKE
+)
+
+var (
+	noteDescription = map[uint32]string{
+		syscall.NOTE_DELETE: "Delete",
+		syscall.NOTE_WRITE:  "Write",
+		syscall.NOTE_EXTEND: "Extend",
+		syscall.NOTE_ATTRIB: "Attrib",
+		syscall.NOTE_LINK:   "Link",
+		syscall.NOTE_RENAME: "Rename",
+		syscall.NOTE_REVOKE: "Revoke",
+	}
+)
+
 func main() {
 	log.Println("Hello")
 
-	kq, err := kqueue()
+	kq, err := Kqueue()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -37,7 +55,7 @@ func main() {
 	changes := make([]syscall.Kevent_t, 1)
 
 	flags := syscall.EV_ADD | syscall.EV_CLEAR | syscall.EV_ENABLE
-	changes[0].Fflags = syscall.NOTE_WRITE // uint32
+	changes[0].Fflags = NOTE_ALL_EVENTS // uint32
 
 	// Udata is usually *byte, but it a intptr_t on netbsd.
 	// could use syscall.BytePtrFromString or some cgo
@@ -59,18 +77,31 @@ func main() {
 		events := make([]syscall.Kevent_t, 1)
 		// block here until an event arrives
 		n, err := syscall.Kevent(kq, nil, events, nil)
+		log.Printf("%d events", n)
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Println(n, events)
+		for _, event := range events {
+			logEvent(event)
+		}
 	}
 
 	syscall.Close(kq)
 }
 
-// kqueue creates a new kernel event queue and returns
+func logEvent(event syscall.Kevent_t) {
+	note := ""
+	for bit, description := range noteDescription {
+		if event.Fflags&bit == bit {
+			note += description + " "
+		}
+	}
+	log.Printf("fd: %d fflags: %s%+v", event.Ident, note, event)
+}
+
+// Kqueue creates a new kernel event queue and returns
 // a descriptor
-func kqueue() (fd int, err error) {
+func Kqueue() (fd int, err error) {
 	fd, err = syscall.Kqueue()
 	return fd, os.NewSyscallError("Kqueue", err)
 }
