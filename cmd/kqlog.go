@@ -41,6 +41,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer syscall.Close(kq)
 
 	dirname := "/tmp"
 
@@ -52,41 +53,23 @@ func main() {
 		log.Fatal(os.NewSyscallError("Open", err))
 	}
 
-	changes := make([]syscall.Kevent_t, 1)
-
-	flags := syscall.EV_ADD | syscall.EV_CLEAR | syscall.EV_ENABLE
-	changes[0].Fflags = NOTE_ALL_EVENTS // uint32
-
-	// Udata is usually *byte, but it a intptr_t on netbsd.
-	// could use syscall.BytePtrFromString or some cgo
-	// https://code.google.com/p/go-wiki/wiki/cgo
-	// but having the string not GC too soon, and then having to
-	// clean it up all sounds like a bad idea
-
-	// SetKevent converts ints to the platform-specific types
-	syscall.SetKevent(&changes[0], fd, syscall.EVFILT_VNODE, flags)
-	log.Printf("%+v", changes)
-
-	// register the event
-	_, err = syscall.Kevent(kq, changes, nil, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
+	Add(kq, fd, NOTE_ALL_EVENTS)
 
 	for {
-		events := make([]syscall.Kevent_t, 1)
+		events := make([]syscall.Kevent_t, 10)
 		// block here until an event arrives
 		n, err := syscall.Kevent(kq, nil, events, nil)
 		log.Printf("%d events", n)
 		if err != nil {
 			log.Fatal(err)
 		}
-		for _, event := range events {
+		for i, event := range events {
+			if i >= n {
+				break
+			}
 			logEvent(event)
 		}
 	}
-
-	syscall.Close(kq)
 }
 
 func logEvent(event syscall.Kevent_t) {
@@ -101,7 +84,28 @@ func logEvent(event syscall.Kevent_t) {
 
 // Kqueue creates a new kernel event queue and returns
 // a descriptor
-func Kqueue() (fd int, err error) {
-	fd, err = syscall.Kqueue()
-	return fd, os.NewSyscallError("Kqueue", err)
+func Kqueue() (kq int, err error) {
+	kq, err = syscall.Kqueue()
+	return kq, os.NewSyscallError("Kqueue", err)
+}
+
+// Kevent registers events with the queue
+func Add(kq, fd, fflags int) error {
+	// TODO: multiple descriptors at once?
+	changes := make([]syscall.Kevent_t, 1)
+
+	flags := syscall.EV_ADD | syscall.EV_CLEAR | syscall.EV_ENABLE
+	changes[0].Fflags = uint32(fflags)
+
+	// Udata could be useful for storing the file path with the event
+	// but passing strings to C and back while avoiding GC issues may
+	// not be worth it. Udata is usually *byte, but it a intptr_t on NetBSD.
+
+	// SetKevent converts ints to the platform-specific types
+	syscall.SetKevent(&changes[0], fd, syscall.EVFILT_VNODE, flags)
+
+	// register the event
+	_, err := syscall.Kevent(kq, changes, nil, nil)
+	// should I be checking success == -1?
+	return err
 }
