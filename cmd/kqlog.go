@@ -35,8 +35,6 @@ var (
 )
 
 func main() {
-	log.Println("Hello")
-
 	kq, err := Kqueue()
 	if err != nil {
 		log.Fatal(err)
@@ -55,18 +53,16 @@ func main() {
 
 	Add(kq, fd, NOTE_ALL_EVENTS)
 
+	eventBuffer := make([]syscall.Kevent_t, 10)
+
 	for {
-		events := make([]syscall.Kevent_t, 10)
-		// block here until an event arrives
-		n, err := syscall.Kevent(kq, nil, events, nil)
-		log.Printf("%d events", n)
+		events, err := Read(kq, eventBuffer)
 		if err != nil {
 			log.Fatal(err)
 		}
-		for i, event := range events {
-			if i >= n {
-				break
-			}
+
+		log.Printf("%d events", len(events))
+		for _, event := range events {
 			logEvent(event)
 		}
 	}
@@ -94,18 +90,25 @@ func Add(kq, fd, fflags int) error {
 	// TODO: multiple descriptors at once?
 	changes := make([]syscall.Kevent_t, 1)
 
-	flags := syscall.EV_ADD | syscall.EV_CLEAR | syscall.EV_ENABLE
+	const flags = syscall.EV_ADD | syscall.EV_CLEAR | syscall.EV_ENABLE
+
+	// SetKevent converts ints to the platform-specific types:
+	syscall.SetKevent(&changes[0], fd, syscall.EVFILT_VNODE, flags)
 	changes[0].Fflags = uint32(fflags)
 
 	// Udata could be useful for storing the file path with the event
 	// but passing strings to C and back while avoiding GC issues may
 	// not be worth it. Udata is usually *byte, but it a intptr_t on NetBSD.
 
-	// SetKevent converts ints to the platform-specific types
-	syscall.SetKevent(&changes[0], fd, syscall.EVFILT_VNODE, flags)
-
 	// register the event
 	_, err := syscall.Kevent(kq, changes, nil, nil)
 	// should I be checking success == -1?
-	return err
+	return os.NewSyscallError("Kevent", err)
+}
+
+// Read retrieves pending events
+func Read(kq int, events []syscall.Kevent_t) ([]syscall.Kevent_t, error) {
+	// block here until an event arrives
+	n, err := syscall.Kevent(kq, nil, events, nil)
+	return events[0:n], err
 }
