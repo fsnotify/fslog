@@ -71,11 +71,10 @@ func main() {
 }
 
 func open(name string) (fd int) {
-	// syscall.O_NONBLOCK|syscall.O_RDONLY
+	// darwin: syscall.O_EVTONLY
+	// otherwise: syscall.O_NONBLOCK|syscall.O_RDONLY
 	// why 0700?
 	fd, err := syscall.Open(name, syscall.O_EVTONLY, 0700)
-	// could use os.OpenFile with File.Fd(), but some of these flags don't exist in os. Hm.
-	// also, what about directories?
 	// should I be checking fd == -1 instead?
 	if err != nil {
 		log.Fatal(os.NewSyscallError("Open", err))
