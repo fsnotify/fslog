@@ -42,23 +42,25 @@ func main() {
 	}
 	defer syscall.Close(kq)
 
-	dirname := "/tmp"
-
-	// syscall.O_NONBLOCK|syscall.O_RDONLY
-	fd, err := syscall.Open(dirname, syscall.O_EVTONLY, 0700)
-	// could use os.OpenFile with File.Fd(), but some of these flags don't exist in os. Hm.
-	// should I be checking fd == -1 instead?
-	if err != nil {
-		log.Fatal(os.NewSyscallError("Open", err))
+	fd := open("/tmp")
+	defer syscall.Close(fd)
+	log.Printf("fd: %d for %s", fd, "/tmp")
+	if err := Add(kq, fd, NOTE_ALL_EVENTS); err != nil {
+		log.Fatal(err)
 	}
 
-	Add(kq, fd, NOTE_ALL_EVENTS)
+	fd2 := open("./kqlog.go")
+	defer syscall.Close(fd2)
+	log.Printf("fd: %d for %s", fd2, "./kqlog.go")
+	if err := Add(kq, fd2, NOTE_ALL_EVENTS); err != nil {
+		log.Fatal(err)
+	}
 
 	eventBuffer := make([]syscall.Kevent_t, 10)
-	timespec := DurationToTimespec(100 * time.Millisecond)
+	// timespec := DurationToTimespec(100 * time.Millisecond)
 
 	for {
-		events, err := Read(kq, eventBuffer, &timespec)
+		events, err := Read(kq, eventBuffer, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -68,6 +70,19 @@ func main() {
 			logEvent(event)
 		}
 	}
+}
+
+func open(name string) (fd int) {
+	// syscall.O_NONBLOCK|syscall.O_RDONLY
+	// why 0700?
+	fd, err := syscall.Open(name, syscall.O_EVTONLY, 0700)
+	// could use os.OpenFile with File.Fd(), but some of these flags don't exist in os. Hm.
+	// also, what about directories?
+	// should I be checking fd == -1 instead?
+	if err != nil {
+		log.Fatal(os.NewSyscallError("Open", err))
+	}
+	return fd
 }
 
 func logEvent(event syscall.Kevent_t) {
