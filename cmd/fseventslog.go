@@ -11,14 +11,14 @@ import (
 	"bufio"
 	"log"
 	"os"
+	"time"
 
 	"github.com/go-fsnotify/fslog/internal/fsevents"
 )
 
 func main() {
-	stream := fsevents.New(0, fsevents.NOW, 1.0, fsevents.CF_FILEEVENTS, "/tmp")
+	stream := fsevents.New(0, fsevents.NOW, time.Second/10, fsevents.CF_FILEEVENTS, "/tmp")
 	stream.Start()
-	defer stream.Close()
 
 	go func() {
 		for msg := range stream.Chan {
@@ -31,6 +31,7 @@ func main() {
 	// press enter to continue
 	in := bufio.NewReader(os.Stdin)
 	in.ReadString('\n')
+	stream.Close()
 }
 
 var noteDescription = map[fsevents.EventFlags]string{
