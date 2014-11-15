@@ -13,11 +13,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-fsnotify/fslog/internal/fsevents"
+	"github.com/go-fsnotify/fsevents"
 )
 
 func main() {
-	stream := fsevents.New(0, fsevents.NOW, time.Second/10, fsevents.CF_FILEEVENTS, "/tmp")
+	stream := fsevents.New(0, fsevents.SinceNow, time.Second/10, fsevents.FileEvents, "/tmp")
 	stream.Start()
 
 	go func() {
@@ -35,26 +35,26 @@ func main() {
 }
 
 var noteDescription = map[fsevents.EventFlags]string{
-	fsevents.EF_MUSTSCANSUBDIRS: "MustScanSubdirs",
-	fsevents.EF_USERDROPPED:     "UserDropped",
-	fsevents.EF_KERNELDROPPED:   "KernelDropped",
-	fsevents.EF_EVENTIDSWRAPPED: "EventIdsWrapped",
-	fsevents.EF_HISTORYDONE:     "HistoryDone",
-	fsevents.EF_ROOTCHANGED:     "RootChanged",
-	fsevents.EF_MOUNT:           "Mount",
-	fsevents.EF_UNMOUNT:         "Unmount",
+	fsevents.MustScanSubDirs: "MustScanSubdirs",
+	fsevents.UserDropped:     "UserDropped",
+	fsevents.KernelDropped:   "KernelDropped",
+	fsevents.EventIdsWrapped: "EventIdsWrapped",
+	fsevents.HistoryDone:     "HistoryDone",
+	fsevents.RootChanged:     "RootChanged",
+	fsevents.Mount:           "Mount",
+	fsevents.Unmount:         "Unmount",
 
-	fsevents.EF_CREATED:       "Created",
-	fsevents.EF_REMOVED:       "Removed",
-	fsevents.EF_INODEMETAMOD:  "InodeMetaMod",
-	fsevents.EF_RENAMED:       "Renamed",
-	fsevents.EF_MODIFIED:      "Modified",
-	fsevents.EF_FINDERINFOMOD: "FinderInfoMod",
-	fsevents.EF_CHANGEOWNER:   "ChangeOwner",
-	fsevents.EF_XATTRMOD:      "XAttrMod",
-	fsevents.EF_ISFILE:        "IsFile",
-	fsevents.EF_ISDIR:         "IsDir",
-	fsevents.EF_ISSYMLINK:     "IsSymLink",
+	fsevents.Created:       "Created",
+	fsevents.Removed:       "Removed",
+	fsevents.InodeMetaMod:  "InodeMetaMod",
+	fsevents.Renamed:       "Renamed",
+	fsevents.Modified:      "Modified",
+	fsevents.FinderInfoMod: "FinderInfoMod",
+	fsevents.ChangeOwner:   "ChangeOwner",
+	fsevents.XattrMod:      "XAttrMod",
+	fsevents.IsFile:        "IsFile",
+	fsevents.IsDir:         "IsDir",
+	fsevents.IsSymlink:     "IsSymLink",
 }
 
 func logEvent(event fsevents.Event) {
@@ -64,5 +64,5 @@ func logEvent(event fsevents.Event) {
 			note += description + " "
 		}
 	}
-	log.Printf("EventID: %d Path: %s Flags: %s", event.Id, event.Path, note)
+	log.Printf("EventID: %d Path: %s Flags: %s", event.ID, event.Path, note)
 }
