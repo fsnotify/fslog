@@ -13,7 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-fsnotify/fslog/internal/fsevents"
+	"github.com/go-fsnotify/fsevents"
 )
 
 func main() {
