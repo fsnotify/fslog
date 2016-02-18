@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-fsnotify/fslog/internal/kqueue"
+	"github.com/fsnotify/fslog/internal/kqueue"
 )
 
 func main() {
